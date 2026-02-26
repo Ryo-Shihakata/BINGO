@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BINGO 抽選</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050510;
+    --accent: #ff2d55;
+    --gold: #ffd60a;
+    --cyan: #00f5d4;
+    --purple: #bf5af2;
+    --text: #ffffff;
+    --muted: #3a3a6a;
+    --card: #0d0d24;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  #stars {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    animation: twinkle var(--d) ease-in-out infinite alternate;
+  }
+  @keyframes twinkle {
+    from { opacity: 0.1; transform: scale(1); }
+    to { opacity: 0.8; transform: scale(1.3); }
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  main {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 1200px;
+    padding: 20px 24px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .header {
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .header h1 {
+    font-family: 'Bebas Neue', cursive;
+    font-size: clamp(56px, 10vw, 110px);
+    letter-spacing: 20px;
+    background: linear-gradient(180deg, #fff 0%, var(--gold) 50%, var(--accent) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 30px #ffd60a88);
+    line-height: 1;
+  }
+  .header-sub {
+    font-size: 11px;
+    letter-spacing: 6px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  /* Slot machine */
+  .slot-wrap {
+    position: relative;
+    width: clamp(260px, 38vw, 420px);
+    height: clamp(150px, 20vw, 250px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  .slot-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 20px;
+    border: 3px solid var(--gold);
+    box-shadow: 0 0 30px var(--gold), 0 0 80px #ffd60a44, inset 0 0 40px #ffd60a11;
+    transition: all 0.3s;
+  }
+  .slot-ring.spinning {
+    border-color: var(--accent);
+    box-shadow: 0 0 40px var(--accent), 0 0 100px #ff2d5566, inset 0 0 60px #ff2d5522;
+    animation: ringPulse 0.12s linear infinite;
+  }
+  @keyframes ringPulse {
+    0%,100% { box-shadow: 0 0 40px var(--accent), 0 0 100px #ff2d5566; }
+    50%      { box-shadow: 0 0 70px var(--accent), 0 0 140px #ff2d5588; }
+  }
+
+  .slot-bg {
+    position: absolute;
+    inset: 4px;
+    border-radius: 16px;
+    background: radial-gradient(ellipse at 50% 30%, #1a0a2e 0%, var(--bg) 80%);
+  }
+
+  .slot-number {
+    position: relative;
+    font-family: 'Bebas Neue', cursive;
+    font-size: clamp(100px, 17vw, 200px);
+    line-height: 1;
+    color: var(--gold);
+    text-shadow: 0 0 30px var(--gold), 0 0 70px #ffd60a88;
+    min-width: 3ch;
+    text-align: center;
+    user-select: none;
+  }
+  .slot-number.spinning {
+    color: var(--accent);
+    text-shadow: 0 0 20px var(--accent), 0 0 50px #ff2d5566;
+  }
+  .slot-number.reveal {
+    animation: bigReveal 0.6s cubic-bezier(0.34, 1.8, 0.64, 1) forwards;
+  }
+  @keyframes bigReveal {
+    0%   { transform: scale(0.2) rotate(-8deg); opacity: 0; }
+    70%  { transform: scale(1.2) rotate(2deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  .slot-number.idle {
+    color: var(--muted);
+    text-shadow: none;
+    font-size: clamp(40px, 7vw, 72px);
+  }
+
+  .burst-container {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 500;
+    overflow: hidden;
+  }
+
+  /* Stats */
+  .count-badge {
+    display: flex;
+    gap: 36px;
+    margin-bottom: 14px;
+  }
+  .badge { text-align: center; }
+  .badge-num {
+    font-family: 'Bebas Neue', cursive;
+    font-size: 40px;
+    line-height: 1;
+  }
+  .badge-label {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .badge.drawn .badge-num { color: var(--accent); text-shadow: 0 0 10px #ff2d5566; }
+  .badge.remain .badge-num { color: var(--cyan); text-shadow: 0 0 10px #00f5d466; }
+
+  .progress-bar {
+    width: clamp(200px, 50vw, 500px);
+    height: 5px;
+    background: #1a1a3a;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 22px;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--gold));
+    border-radius: 3px;
+    transition: width 0.5s ease;
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  /* Buttons — small */
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+  .draw-btn {
+    font-family: 'Bebas Neue', cursive;
+    font-size: 16px;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, var(--accent), #a01535);
+    color: white;
+    border: none;
+    padding: 10px 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 2px 16px #ff2d5544;
+  }
+  .draw-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 24px #ff2d5566;
+  }
+  .draw-btn:active:not(:disabled) { transform: translateY(1px); }
+  .draw-btn:disabled { background: #2a2a4a; cursor: not-allowed; opacity: 0.5; }
+
+  .reset-btn {
+    background: transparent;
+    border: 1px solid var(--muted);
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 2px;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .reset-btn:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  /* History strip */
+  .history-strip {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+    min-height: 50px;
+    align-items: center;
+  }
+  .hist-num {
+    font-family: 'Bebas Neue', cursive;
+    font-size: 20px;
+    letter-spacing: 1px;
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: 1.5px solid #660020;
+    color: var(--accent);
+    background: #180810;
+  }
+  .hist-num.is-latest {
+    border-color: var(--gold);
+    color: var(--gold);
+    background: #1a1200;
+    box-shadow: 0 0 14px #ffd60a66;
+    font-size: 28px;
+    padding: 6px 18px;
+  }
+  .hist-num.old { opacity: 0.35; font-size: 16px; }
+
+  /* Number Grid */
+  .grid-wrap { width: 100%; max-width: 960px; }
+  .grid-title {
+    font-size: 10px;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .number-grid {
+    display: grid;
+    grid-template-columns: repeat(15, 1fr);
+    gap: 5px;
+  }
+  .num-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Bebas Neue', cursive;
+    font-size: clamp(11px, 2vw, 20px);
+    border-radius: 6px;
+    background: var(--card);
+    color: var(--muted);
+    border: 1.5px solid #1a1a3a;
+    transition: all 0.4s;
+    position: relative;
+    overflow: hidden;
+  }
+  .num-cell.drawn {
+    background: #180010;
+    color: #cc2244;
+    border-color: #440018;
+    animation: cellPop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .num-cell.drawn::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, #ff2d5512 0%, transparent 70%);
+  }
+  .num-cell.latest {
+    background: #1a1200 !important;
+    color: var(--gold) !important;
+    border-color: var(--gold) !important;
+    box-shadow: 0 0 16px var(--gold), 0 0 32px #ffd60a55;
+  }
+  @keyframes cellPop {
+    0% { transform: scale(0.4); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Finish overlay */
+  .finish-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 900;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .finish-overlay.show { display: flex; }
+  .finish-text {
+    font-family: 'Bebas Neue', cursive;
+    font-size: clamp(60px, 14vw, 150px);
+    letter-spacing: 10px;
+    background: linear-gradient(135deg, var(--gold), var(--accent), var(--cyan), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: finPulse 1.4s ease-in-out infinite alternate;
+  }
+  @keyframes finPulse {
+    from { filter: drop-shadow(0 0 20px var(--gold)); }
+    to   { filter: drop-shadow(0 0 60px var(--accent)); }
+  }
+  .finish-sub { color: #aaa; font-size: 14px; letter-spacing: 4px; }
+  .finish-close {
+    margin-top: 10px;
+    background: transparent;
+    border: 1px solid var(--muted);
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 2px;
+    padding: 8px 24px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .finish-close:hover { border-color: #fff; color: #fff; }
+</style>
+</head>
+<body>
+
+<div id="stars"></div>
+<div class="burst-container" id="burstContainer"></div>
+
+<main>
+  <div class="header">
+    <h1>BINGO</h1>
+    <div class="header-sub">LUCKY NUMBER DRAW &nbsp;|&nbsp; 1〜75</div>
+  </div>
+
+  <div class="slot-wrap">
+    <div class="slot-ring" id="slotRing"></div>
+    <div class="slot-bg"></div>
+    <div class="slot-number idle" id="slotNumber">?</div>
+  </div>
+
+  <div class="count-badge">
+    <div class="badge drawn">
+      <div class="badge-num" id="drawnCount">0</div>
+      <div class="badge-label">抽選済み</div>
+    </div>
+    <div class="badge remain">
+      <div class="badge-num" id="remainCount">75</div>
+      <div class="badge-label">残り</div>
+    </div>
+  </div>
+
+  <div class="progress-bar">
+    <div class="progress-fill" id="progressFill" style="width:0%"></div>
+  </div>
+
+  <div class="btn-row">
+    <button class="draw-btn" id="drawBtn" onclick="startDraw()">▶ 抽選する</button>
+    <button class="reset-btn" onclick="resetGame()">リセット</button>
+    <button class="reset-btn" id="muteBtn" onclick="toggleMute()" title="効果音オン/オフ">🔊 音</button>
+  </div>
+
+  <div class="history-strip" id="historyStrip"></div>
+
+  <div class="grid-wrap">
+    <div class="grid-title">抽選番号一覧（出た番号はハイライト）</div>
+    <div class="number-grid" id="numberGrid"></div>
+  </div>
+</main>
+
+<div class="finish-overlay" id="finishOverlay">
+  <div class="finish-text">COMPLETE!</div>
+  <div class="finish-sub">全 75 番号 抽選完了！</div>
+  <button class="finish-close" onclick="closeFinish()">閉じる</button>
+</div>
+
+<script>
+// ────────────────────────
+// Sound Engine (Web Audio API)
+// ────────────────────────
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+// Single snare hit
+function playSnare(volume = 0.6, when = 0) {
+  const ctx = getAudioCtx();
+  const t = when || ctx.currentTime;
+
+  // Noise buffer
+  const bufLen = ctx.sampleRate * 0.18;
+  const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) data[i] = Math.random() * 2 - 1;
+
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+
+  // Bandpass filter for snare crack
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 2800;
+  filter.Q.value = 0.7;
+
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  src.start(t);
+  src.stop(t + 0.2);
+}
+
+// Bass drum hit
+function playKick(volume = 0.8, when = 0) {
+  const ctx = getAudioCtx();
+  const t = when || ctx.currentTime;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(160, t);
+  osc.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+
+  gain.gain.setValueAtTime(volume, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.3);
+}
+
+// High tick for slot spinning
+function playTick(freq = 1200, vol = 0.15) {
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 0.03, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  const f = ctx.createBiquadFilter();
+  f.type = 'highpass';
+  f.frequency.value = freq;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+  src.connect(f); f.connect(g); g.connect(ctx.destination);
+  src.start(t); src.stop(t + 0.05);
+}
+
+// Full drumroll sequence
+let drumrollInterval = null;
+let drumrollBeat = 0;
+
+function startDrumroll() {
+  const ctx = getAudioCtx();
+  drumrollBeat = 0;
+  let bpm = 240; // starts fast
+
+  function beat() {
+    const interval = 60000 / bpm;
+    playSnare(0.4 + Math.random() * 0.2);
+    if (drumrollBeat % 2 === 0) playKick(0.3);
+    drumrollBeat++;
+    // Gradually slow down after beat 16
+    if (drumrollBeat > 16 && bpm > 120) bpm -= 8;
+    drumrollInterval = setTimeout(beat, interval);
+  }
+  beat();
+}
+
+function stopDrumroll() {
+  if (drumrollInterval) { clearTimeout(drumrollInterval); drumrollInterval = null; }
+}
+
+// Reveal fanfare — triumphant ascending tones
+function playFanfare() {
+  const ctx = getAudioCtx();
+  const t = ctx.currentTime;
+
+  // Big kick
+  playKick(1.0, t);
+  playSnare(0.9, t + 0.05);
+
+  // Ascending horn-like notes
+  const notes = [261.6, 329.6, 392, 523.2, 659.3];
+  notes.forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.value = freq;
+
+    // Detune for richness
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'sawtooth';
+    osc2.frequency.value = freq * 1.005;
+
+    const dist = ctx.createWaveShaper();
+    const curve = new Float32Array(256);
+    for (let j = 0; j < 256; j++) {
+      const x = (j * 2) / 256 - 1;
+      curve[j] = (Math.PI + 30) * x / (Math.PI + 30 * Math.abs(x));
+    }
+    dist.curve = curve;
+
+    const noteStart = t + i * 0.09;
+    const noteDur = 0.18 + (i === notes.length - 1 ? 0.6 : 0);
+
+    gain.gain.setValueAtTime(0, noteStart);
+    gain.gain.linearRampToValueAtTime(0.18, noteStart + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, noteStart + noteDur);
+
+    osc.connect(dist); osc2.connect(dist); dist.connect(gain); gain.connect(ctx.destination);
+    osc.start(noteStart); osc.stop(noteStart + noteDur + 0.1);
+    osc2.start(noteStart); osc2.stop(noteStart + noteDur + 0.1);
+  });
+
+  // Final cymbal crash
+  const crashBuf = ctx.createBuffer(1, ctx.sampleRate * 0.8, ctx.sampleRate);
+  const cd = crashBuf.getChannelData(0);
+  for (let i = 0; i < cd.length; i++) cd[i] = Math.random() * 2 - 1;
+  const crashSrc = ctx.createBufferSource();
+  crashSrc.buffer = crashBuf;
+  const hpf = ctx.createBiquadFilter();
+  hpf.type = 'highpass';
+  hpf.frequency.value = 6000;
+  const cg = ctx.createGain();
+  cg.gain.setValueAtTime(0.6, t + 0.35);
+  cg.gain.exponentialRampToValueAtTime(0.001, t + 1.0);
+  crashSrc.connect(hpf); hpf.connect(cg); cg.connect(ctx.destination);
+  crashSrc.start(t + 0.35); crashSrc.stop(t + 1.1);
+}
+
+// Stars
+(function() {
+  const c = document.getElementById('stars');
+  for (let i = 0; i < 180; i++) {
+    const s = document.createElement('div');
+    s.className = 'star';
+    const sz = Math.random() * 2.5 + 0.5;
+    s.style.cssText = `width:${sz}px;height:${sz}px;left:${Math.random()*100}%;top:${Math.random()*100}%;--d:${(Math.random()*3+2).toFixed(1)}s;animation-delay:${(Math.random()*4).toFixed(1)}s`;
+    c.appendChild(s);
+  }
+})();
+
+// Confetti animation inject
+const confStyle = document.createElement('style');
+confStyle.textContent = `@keyframes confettiFall{0%{opacity:1;transform:translateX(0) translateY(0) rotate(0deg)}100%{opacity:0;transform:translateX(var(--ex)) translateY(110vh) rotate(var(--rot))}}`;
+document.head.appendChild(confStyle);
+
+// State
+const TOTAL = 75;
+let available = [], drawn = [], latestNum = null, spinning = false;
+
+function init() {
+  available = Array.from({length: TOTAL}, (_, i) => i + 1);
+  drawn = []; latestNum = null; spinning = false;
+  renderGrid();
+  updateStats();
+  document.getElementById('historyStrip').innerHTML = '';
+  const el = document.getElementById('slotNumber');
+  el.textContent = '?';
+  el.className = 'slot-number idle';
+  document.getElementById('slotRing').classList.remove('spinning');
+  document.getElementById('drawBtn').disabled = false;
+  document.getElementById('finishOverlay').classList.remove('show');
+}
+
+function renderGrid() {
+  const g = document.getElementById('numberGrid');
+  g.innerHTML = '';
+  for (let i = 1; i <= TOTAL; i++) {
+    const d = document.createElement('div');
+    d.className = 'num-cell';
+    d.id = `cell-${i}`;
+    d.textContent = i;
+    g.appendChild(d);
+  }
+}
+
+function startDraw() {
+  if (spinning || available.length === 0) return;
+  spinning = true;
+  document.getElementById('drawBtn').disabled = true;
+
+  const idx = Math.floor(Math.random() * available.length);
+  const finalNum = available.splice(idx, 1)[0];
+
+  const el = document.getElementById('slotNumber');
+  const ring = document.getElementById('slotRing');
+  el.className = 'slot-number spinning';
+  ring.classList.add('spinning');
+
+  startDrumroll();
+
+  // Drumroll timing
+  const TOTAL_TIME = 2000;
+  let elapsed = 0, lastTime = Date.now();
+
+  function roll() {
+    const now = Date.now();
+    elapsed += now - lastTime;
+    lastTime = now;
+
+    el.textContent = Math.floor(Math.random() * TOTAL) + 1;
+    // tick sound — faster = higher pitch
+    const pitchMap = elapsed < 800 ? 2000 : elapsed < 1400 ? 1500 : 1000;
+    playTick(pitchMap, 0.12 + (elapsed / TOTAL_TIME) * 0.1);
+
+    let delay = elapsed < 800 ? 55 : elapsed < 1400 ? 90 : elapsed < 1800 ? 160 : 260;
+
+    if (elapsed < TOTAL_TIME) {
+      setTimeout(roll, delay);
+    } else {
+      reveal(finalNum);
+    }
+  }
+  setTimeout(roll, 55);
+}
+
+function reveal(num) {
+  stopDrumroll();
+  const el = document.getElementById('slotNumber');
+  const ring = document.getElementById('slotRing');
+  el.textContent = num;
+  el.className = 'slot-number reveal';
+  ring.classList.remove('spinning');
+
+  // Flash
+  flashScreen();
+  // Fanfare
+  playFanfare();
+  // Confetti
+  launchConfetti(90);
+
+  // Grid update
+  if (latestNum !== null) {
+    const prev = document.getElementById(`cell-${latestNum}`);
+    if (prev) { prev.classList.remove('latest'); prev.classList.add('drawn'); }
+  }
+  latestNum = num;
+  drawn.push(num);
+  const cell = document.getElementById(`cell-${num}`);
+  cell.classList.add('drawn', 'latest');
+  cell.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  updateHistory(num);
+  updateStats();
+  spinning = false;
+
+  if (available.length === 0) {
+    setTimeout(() => {
+      document.getElementById('finishOverlay').classList.add('show');
+      launchConfetti(200);
+    }, 1200);
+  } else {
+    document.getElementById('drawBtn').disabled = false;
+  }
+}
+
+function updateHistory(num) {
+  const strip = document.getElementById('historyStrip');
+  // Downgrade previous
+  const prev = strip.querySelector('.is-latest');
+  if (prev) prev.classList.remove('is-latest');
+  strip.querySelectorAll('.hist-num').forEach((el, i) => {
+    if (i >= 4) el.classList.add('old');
+  });
+  const tag = document.createElement('div');
+  tag.className = 'hist-num is-latest';
+  tag.textContent = num;
+  strip.insertBefore(tag, strip.firstChild);
+  while (strip.children.length > 7) strip.removeChild(strip.lastChild);
+}
+
+function updateStats() {
+  document.getElementById('drawnCount').textContent = drawn.length;
+  document.getElementById('remainCount').textContent = available.length;
+  document.getElementById('progressFill').style.width = `${(drawn.length / TOTAL) * 100}%`;
+}
+
+function flashScreen() {
+  const f = document.createElement('div');
+  f.style.cssText = 'position:fixed;inset:0;z-index:800;background:rgba(255,214,10,0.15);pointer-events:none;animation:flashOut 0.5s ease forwards';
+  const s = document.createElement('style');
+  s.textContent = '@keyframes flashOut{from{opacity:1}to{opacity:0}}';
+  document.head.appendChild(s);
+  document.body.appendChild(f);
+  setTimeout(() => { f.remove(); s.remove(); }, 600);
+}
+
+function launchConfetti(count) {
+  const container = document.getElementById('burstContainer');
+  const colors = ['#ff2d55','#ffd60a','#00f5d4','#bf5af2','#ffffff','#ff9f0a','#30d158'];
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    const x = 20 + Math.random() * 60;
+    const ex = ((Math.random() - 0.5) * 60).toFixed(0);
+    const rot = (Math.random() * 720 - 360).toFixed(0);
+    const dur = (0.9 + Math.random() * 1.2).toFixed(2);
+    const delay = (Math.random() * 0.5).toFixed(2);
+    p.style.cssText = `
+      position:absolute;
+      left:${x}%; top:-8px;
+      width:${6+Math.random()*8}px;
+      height:${10+Math.random()*10}px;
+      border-radius:2px;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      opacity:0;
+      --ex:${ex}vw; --rot:${rot}deg;
+      animation:confettiFall ${dur}s ${delay}s ease-in forwards;
+    `;
+    container.appendChild(p);
+    setTimeout(() => p.remove(), (parseFloat(dur) + parseFloat(delay)) * 1000 + 100);
+  }
+}
+
+function resetGame() {
+  if (drawn.length > 0 && !confirm('リセットしますか？')) return;
+  stopDrumroll();
+  init();
+}
+function closeFinish() {
+  document.getElementById('finishOverlay').classList.remove('show');
+}
+
+// Mute toggle
+let muted = false;
+function toggleMute() {
+  muted = !muted;
+  document.getElementById('muteBtn').textContent = muted ? '🔇 音' : '🔊 音';
+  if (audioCtx) {
+    audioCtx.destination.channelInterpretation = 'discrete';
+    // Suspend/resume as mute proxy
+    if (muted) audioCtx.suspend();
+    else audioCtx.resume();
+  }
+}
+
+// Resume AudioContext on first user gesture (browser policy)
+document.addEventListener('click', () => {
+  if (audioCtx && audioCtx.state === 'suspended' && !muted) audioCtx.resume();
+}, { once: false });
+
+init();
+</script>
+</body>
+</html>
